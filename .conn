@@ -27,32 +27,32 @@ function _ECHO(){
 	echo "                 --host=<hostname value> : server hostname"
 	echo "                 --ip=<ip address value> : server ip"
 	echo "                 example) con -D --host=test4 --ip=11.1.1.1"
-    echo ""
-    echo "              -U {sub option} : server list modifying"
-    echo "                 --host=<old hostname>/<new hostname> : change hostname"
-    echo "                 --ip=<old server IP>/<new server IP> : change IP"
-    echo "                 --port=<old server IP>:<old port>/<new server IP>:<new port> : change IP and port"
-    echo "                 --id=<old ID>:<old hostname>/<new ID>:<new hostname> : change ID and hostname"
-    echo "                 --type=<old Type>/<net Type> : change Type"
+	echo ""
+    	echo "              -U {sub option} : server list modifying"
+    	echo "                 --host=<old hostname>/<new hostname> : change hostname"
+    	echo "                 --ip=<old server IP>/<new server IP> : change IP"
+    	echo "                 --port=<old server IP>:<old port>/<new server IP>:<new port> : change IP and port"
+    	echo "                 --id=<old ID>:<old hostname>/<new ID>:<new hostname> : change ID and hostname"
+    	echo "                 --type=<old Type>/<net Type> : change Type"
 	echo ""
 	echo "              -A {sub option} : Server Type input"
 	echo "                 --type=<list type value> : server type"
-    echo ""
-    echo "              -R {restore time} {option}"
-    echo "                 Restore Time : "
-    echo "                     restore time format : YYYYMMDDHHmmss"
-    echo "                     data recovery list : "
-                                    ls ${HOME}/.ssh_connect/.server_list-backup.* | awk -F "backup." '{print "\t\t\t\t"$2}'
-    echo "                 Option : "
-    echo "                     --remove : restore data remove"
-    echo "                     --restore : restore data"
-    echo ""
-    echo "  Connection to the server is not in the list"
-    echo "  $0 {user id}@{hostname or server ip}:{port} {option}"
-    echo "      Option : "
-    echo "              -p <port number> : ssh connect port"
-    echo "              -u <user id> : user id"
-    echo -ne "\n\n"
+    	echo ""
+	echo "              -R {restore time} {option}"
+	echo "                 Restore Time : "
+	echo "                     restore time format : YYYYMMDDHHmmss"
+	echo "                     data recovery list : "
+				    ls ${HOME}/.ssh_connect/.server_list-backup.* | awk -F "backup." '{print "\t\t\t\t"$2}'
+	echo "                 Option : "
+	echo "                     --remove : restore data remove"
+	echo "                     --restore : restore data"
+	echo ""
+	echo "  Connection to the server is not in the list"
+	echo "  $0 {user id}@{hostname or server ip}:{port} {option}"
+	echo "      Option : "
+	echo "              -p <port number> : ssh connect port"
+	echo "              -u <user id> : user id"
+	echo -ne "\n\n"
 	exit -1
 }
 
@@ -450,7 +450,10 @@ case $1 in
         
         exit 0
         ;;
-	*)
+     -h|--help)
+        _ECHO
+        ;;
+     *)
         for i in ${@}
         do
             case $i in
@@ -483,8 +486,8 @@ case $1 in
         fi
         
         [[ -z $1 ]] && \
-		    _ECHO && \
-		    exit -1
+		_ECHO && \
+		exit -1
     
         ;;
 esac
