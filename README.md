@@ -13,6 +13,10 @@ export PATH=$PATH:${HOME}/.ssh_connect
 cd ${HOME}
 
 # File list
-.conn : Executable file
-.complete.sh : Autocomplete file
-.server_list : Serverlist db file
+- .conn : Executable file
+- .complete.sh : Autocomplete file
+- .server_list : Serverlist db file
+
+# Command
+
+con -h or --help
