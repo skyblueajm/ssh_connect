@@ -1,1 +1,1 @@
-# SSH_CONNECT command
+# SSH_CONNECT install
