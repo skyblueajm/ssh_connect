@@ -5,6 +5,10 @@
 # Bash profile modi
 vi .bash_profile
 
+# .ssh_connect/.conn file modi
+DEFAULT_ID="skyblueajk" to default ssh connect id
+DEFAULT_PORT="2230" to default ssh port
+
 alias conn='.conn'
 alias con='.conn'
 
