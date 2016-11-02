@@ -11,3 +11,8 @@ alias con='.conn'
 export PATH=$PATH:${HOME}/.ssh_connect
 . ${HOME}/.ssh_connect/.complete.sh
 cd ${HOME}
+
+# File list
+.conn : Executable file
+.complete.sh : Autocomplete file
+.server_list : Serverlist db file
