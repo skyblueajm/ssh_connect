@@ -1,0 +1,492 @@
+#!/bin/bash
+
+LIST_FILE="${HOME}/.ssh_connect/.server_list"
+DEFAULT_ID="skyblueajk"
+DEFAULT_PORT="2230"
+histchars=
+
+function _ECHO(){
+	echo "used : $0 {hostname and ip or option}"
+	echo "    Option : "
+	echo "              -i : ip absolute value print"
+	echo "              -d : domain absolute value print"
+	echo "              -l : domain status print"
+	echo "              -L : server list print"
+	echo "              -I {sub option} : server list insert"
+	echo "                 --type=<list type value> : server type"
+	echo "                         server type : "`grep "^#" $LIST_FILE | awk '{print $2}' | sed 's/$'\n'/, /g'`
+	echo "                 --id=<ssh login id value> : login ID"
+	echo "                 --host=<hostname value> : server hostname"
+	echo "                 --ip=<ip address value> : server ip"
+	echo "                 --commant=<commant> : server remark"
+	echo "                 example) con -I --host=test4 --ip=172.16.0.1 --port=2222 --id=test --type=Dev_Server --commant=test aaaa dddd bbbb"
+	echo "              -t <value> : All list outputs that depend on the server type"
+	echo "                         server type : "`grep "^#" $LIST_FILE | awk '{print $2}' | sed 's/$'\n'/, /g'`
+	echo ""
+	echo "              -D {sub option} : server list delete"
+	echo "                 --host=<hostname value> : server hostname"
+	echo "                 --ip=<ip address value> : server ip"
+	echo "                 example) con -D --host=test4 --ip=11.1.1.1"
+    echo ""
+    echo "              -U {sub option} : server list modifying"
+    echo "                 --host=<old hostname>/<new hostname> : change hostname"
+    echo "                 --ip=<old server IP>/<new server IP> : change IP"
+    echo "                 --port=<old server IP>:<old port>/<new server IP>:<new port> : change IP and port"
+    echo "                 --id=<old ID>:<old hostname>/<new ID>:<new hostname> : change ID and hostname"
+    echo "                 --type=<old Type>/<net Type> : change Type"
+	echo ""
+	echo "              -A {sub option} : Server Type input"
+	echo "                 --type=<list type value> : server type"
+    echo ""
+    echo "              -R {restore time} {option}"
+    echo "                 Restore Time : "
+    echo "                     restore time format : YYYYMMDDHHmmss"
+    echo "                     data recovery list : "
+                                    ls ${HOME}/.ssh_connect/.server_list-backup.* | awk -F "backup." '{print "\t\t\t\t"$2}'
+    echo "                 Option : "
+    echo "                     --remove : restore data remove"
+    echo "                     --restore : restore data"
+    echo ""
+    echo "  Connection to the server is not in the list"
+    echo "  $0 {user id}@{hostname or server ip}:{port} {option}"
+    echo "      Option : "
+    echo "              -p <port number> : ssh connect port"
+    echo "              -u <user id> : user id"
+    echo -ne "\n\n"
+	exit -1
+}
+
+function _SERVER_LIST(){
+    for i in `cat $LIST_FILE | sed -e 's/^\#\#\ /\#\#\:/g'`
+    do
+        local commant=""
+        local stype=`echo $i | awk -F ":" '{if ($1 != "") print $0}' | awk -F ":" '{if($1 == "\#\#") print $2}'`
+        if [ ! -z $stype ]; then
+            local type=$stype
+        fi            
+       
+        local slist=`echo $i | grep -v "^#" | awk -F "|" '{ if($1 != "") print $0}' | awk -F "|" '{ if($2 != "") print "HostName : "$2", IP : "$3", Port : "$4", Key file : "$5}'`
+        local commant_host=`echo $i | grep -v "^#" | awk -F "|" '{ if($1 != "") print $0}' | awk -F "|" '{ if($2 != "") print $2}'`
+        local commant=` cat $LIST_FILE | awk -F "|" -v str=$commant_host '{if($2 == str) print $6}'`
+       
+        if [ "$slist" != "" ]; then
+            LIST_PRINT="$LIST_PRINT\n[$type] $slist, Commant : $commant"
+        fi             
+    done
+    echo -ne "$LIST_PRINT" | sort -k 1,3 | more
+}
+
+function _ARGS_LIST(){
+	for i in ${@}
+	do 
+	    case $i in
+			--host*)
+				HOSTNAME=`echo "$i" | awk -F "=" '{print $2}'`
+				;;
+			--ip*)
+				IP=`echo "$i" | awk -F "=" '{print $2}'`
+				;;
+			--port*)
+				PORT=`echo "$i" | awk -F "=" '{print $2}'`
+				;;
+			--id*)
+				ID=`echo "$i" | awk -F "=" '{print $2}'`
+				;;
+			--key*)
+				KEY=`echo "$@" | awk -F "--key=" '{print $2}' | awk -F "--" '{print $1}'`
+				;;
+			--type*)
+				TYPE=`echo "$i" | awk -F "=" '{print $2}'`
+				;;
+			--commant*)
+			    COMMANT=`echo $@ | awk -F "--commant=" '{print $2}' | awk -F "--" '{print $1}'`
+			    ;;
+		esac
+	done
+}
+
+function _INSERT(){
+	_ARGS_LIST $@
+
+	[[ -z "$TYPE" ]] && \
+	    echo "Server type is null" && \
+	    echo "	type : "`grep "^#" $LIST_FILE | awk '{print $2}' | sed 's/$'\n'/, /g'` && \
+	    exit -1
+	[[ -z "$HOSTNAME" ]] && \
+	    echo "Hostname not found!!" && \
+	    exit -1
+	[[ -z "$IP" ]] && \
+	    echo "ip not found!!" && \
+	    exit -1
+	[[ -z "$PORT" ]] && \
+	    echo "PORT not found!!" && \
+	    exit -1
+	[[ -z "$ID" ]] && \
+	    echo "id not found!!" && \
+	    exit -1
+	if [ ! -z "$KEY" ]; then
+		[[ ! -f "$KEY" ]]	&& \
+			echo "Key file not found!!" && \
+			exit -1
+	fi
+    [[ -f "$LIST_FILE" ]] && \
+	    cp -a $LIST_FILE $LIST_FILE-backup.`date +%Y%m%d%H%M%S`
+    
+	local CNT=`cat $LIST_FILE | grep "|$HOSTNAME|" | wc -l`
+	[[ $CNT -ne 0 ]] && \
+		echo "error : \"$HOSTNAME\" is found!!" && \
+        exit -1
+    
+    local CNT=`cat $LIST_FILE | grep "|$IP|" | wc -l`
+	[[ $CNT -ne 0 ]] && \
+		echo "error : \"$IP\" is found!!" && \
+        exit -1
+
+	sed -ie 's/^## '"$TYPE"'/## '"$TYPE"'\'$'\n'$ID'|'$HOSTNAME'|'$IP'|'$PORT'|'"$KEY"'|'"$COMMANT"'/g' $LIST_FILE && \
+        echo "[$TYPE] $HOSTNAME server list insert success!!" ||
+        echo "[$TYPE] $HOSTNAME server list insert false!!"
+
+	exit 0
+}
+
+function TYPE_PRINT(){
+    local _LIST=`sed -n "/## $1$/,/^$/p" $LIST_FILE | grep -v "^##"`
+    [[ -z $_LIST ]] && \
+        echo "Server type is \"$1\" not found" && \
+        echo "      Server type : "`grep "^#" $LIST_FILE | awk '{print $2}'` && \
+        exit -1
+    
+    echo -ne "Server type [ $1 ]\n"
+    
+    for i in $_LIST
+    do
+        echo "$i" | awk -F "|" '{ if($2 != "") print "    HostName : "$2", IP : "$3", Port : "$4", Key file : "$5", commant : "$6}'
+    done
+    
+    exit 0
+}
+
+function TYPE_ADD(){
+    _ARGS_LIST $@
+    cp -a $LIST_FILE $LIST_FILE-backup.`date +%Y%m%d%H%M%S`
+    if [ ! -f $LIST_FILE.swp ]; then
+        cp $LIST_FILE $LIST_FILE.swp
+    else
+        echo "$0 : Server Type modify"
+        rm -f $LIST_FILE.swp
+        exit -1
+    fi
+    [[ -z $TYPE ]] && \
+         echo "Not found server type" && \
+         rm -f $LIST_FILE.swp && \
+         exit -1
+    local CNT=`grep "^## $TYPE" $LIST_FILE | wc -l`
+    [[ $CNT -ne 0 ]] && \
+        echo "\"$TYPE\" is server type found" && \
+        rm -f $LIST_FILE.swp && \
+        exit -1
+        
+    echo -ne "\n\n"'## '"$TYPE" >> $LIST_FILE
+    [[ $? -eq 0 ]] && \
+        echo "\"$TYPE\" insert success"
+    rm -f $LIST_FILE.swp
+    
+    exit 0
+}
+
+function _DELETE(){
+    _ARGS_LIST $@
+    [[ -z $HOSTNAME ]] && \
+        echo "Hostname not found!!" && \
+        exit -1
+	[[ -z $IP ]] && \
+	    echo "ip not found!!" && \
+	    exit -1
+	[[ -f $LIST_FILE.swp ]] && \
+	    echo "$LIST_FILE file is modify" && \
+	    exit -1
+	
+	echo -ne "$HOSTNAME is deleted ?? [y/n] : "
+	    read Yn
+	
+	if [ "$Yn" != "y" ]; then
+	   exit 0
+	fi
+	
+	cp $LIST_FILE $LIST_FILE.swp
+	[[ ! -z $HOSTNAME ]] && \
+        cp -a $LIST_FILE $LIST_FILE-backup.`date +%Y%m%d%H%M%S`
+        grep -v "|$HOSTNAME|" $LIST_FILE.swp > $LIST_FILE
+	[[ ! -z $IP ]] && \
+        cp -a $LIST_FILE $LIST_FILE-backup.`date +%Y%m%d%H%M%S`
+        grep -v "|$IP|" $LIST_FILE.swp > $LIST_FILE
+	rm -f $LIST_FILE.swp
+
+	exit 0
+}
+
+function _UPDATE(){
+    _ARGS_LIST $@
+    
+    [[ -f $LIST_FILE.swp ]] && \
+        echo "$LIST_FILE file is modify" && \
+        exit -1
+    
+    cp $LIST_FILE $LIST_FILE.swp
+        
+    local _BE_N=`echo "$ID" | awk -F "/" '{print $1}' | sed 's/:/|/g'`
+    local _AF_N=`echo "$ID" | awk -F "/" '{print $2}' | sed 's/:/|/g'`
+    local _BE_H=`echo "$HOSTNAME" | awk -F "/" '{print $1}'`
+    local _AF_H=`echo "$HOSTNAME" | awk -F "/" '{print $2}'`
+    local _BE_I=`echo "$IP" | awk -F "/" '{print $1}'`
+    local _AF_I=`echo "$IP" | awk -F "/" '{print $2}'`
+    local _BE_P=`echo "$PORT" | awk -F "/" '{print $1}' | sed 's/:/|/g'`
+    local _AF_P=`echo "$PORT" | awk -F "/" '{print $2}' | sed 's/:/|/g'`
+    local _BE_T=`echo "$TYPE" | awk -F "/" '{print $1}'`
+    local _AF_T=`echo "$TYPE" | awk -F "/" '{print $2}'`
+    
+    [[ ! -z $HOSTNAME ]] && \
+        cp -a $LIST_FILE $LIST_FILE-backup.`date +%Y%m%d%H%M%S` && \
+        sed -i -e "s/|$_BE_H|/|$_AF_H|/g" $LIST_FILE
+    
+    [[ ! -z $IP ]] && \
+        cp -a $LIST_FILE $LIST_FILE-backup.`date +%Y%m%d%H%M%S` && \
+        sed -i -e "s/|$_BE_I|/|$_AF_I|/g" $LIST_FILE
+    
+    [[ ! -z $PORT ]] && \
+        cp -a $LIST_FILE $LIST_FILE-backup.`date +%Y%m%d%H%M%S` && \
+        sed -i -e "s/|$_BE_P|/|$_AF_P|/g" $LIST_FILE
+    
+    [[ ! -z $ID ]] && \
+        cp -a $LIST_FILE $LIST_FILE-backup.`date +%Y%m%d%H%M%S` && \
+        sed -i -e "s/^$_BE_N|/$_AF_N|/g" $LIST_FILE
+    
+    [[ -z $TYPE ]] && \
+        echo "server type : "`grep "^#" $LIST_FILE | awk '{print $2}' | sed 's/$'\n'/, /g'` && \
+        rm -f $LIST_FILE.swp && \
+        exit -1
+    [[ ! -z $TYPE ]] && \
+        cp -a $LIST_FILE $LIST_FILE-backup.`date +%Y%m%d%H%M%S` && \
+        sed -i -e "s/^## $_BE_T$/## $_AF_T/g" $LIST_FILE && \
+        echo "change success!!" || \
+        echo "change false!!"
+    
+    rm -f $LIST_FILE.swp
+    
+    exit 0
+}
+
+function _RESTORE(){
+    for i in ${@}
+    do
+        local _DATE=`echo $@ | awk -F "-R" '{print $2}' | awk -F "--" '{print $1}' | sed "s/\ //g"`
+        case $i in
+            --remove)
+                if [ ! -z $_DATE ]; then
+                    echo -ne "Are you sure to delete the recovery data? Deleted data can not be recovered. data name \"$_DATE\" [y/n] : "
+                    read R_D
+                    
+                    if [ "$R_D" != "y" -a "$R_D" != "Y" ]; then
+                        echo "Stop restore data delete..." && \
+                        exit 0
+                    else                    
+                        rm -f ${HOME}/.ssh_connect/.server_list-backup.$_DATE && \
+                        echo "$_DATE restore data delete success!!" || \
+                        echo "$_DATE restore data delete false!!"
+                    fi
+                else
+                    _ECHO
+                fi
+                ;;
+            --restore)
+                if [ ! -z $_DATE ]; then
+                    echo -ne "Do you want to recover data? The current data is lost can not be recovered. data name \"$_DATE\" [y/n] : "
+                    read R_R
+                    
+                    if [ "$R_R" != "y" -a "$R_R" != "Y" ]; then
+                        echo "Stop data restore..." && \
+                        exit 0
+                    else
+                        [[ -f ${HOME}/.ssh_connect/.server_list-backup.$_DATE ]] && \
+                            cp ${HOME}/.ssh_connect/.server_list-backup.$_DATE ${HOME}/.ssh_connect/.server_list && \
+                            echo "$_DATE restore success!!" || \
+                            echo "$_DATE restore false!!"
+                    fi
+                else
+                    _ECHO
+                fi                   
+                ;;
+        esac
+    done
+    
+    exit 0
+}
+
+function _CONN(){
+
+	CNT=`echo "$SERVER_LIST" | wc -l`
+
+	[[ $CNT -ne 1 ]] && \
+		echo "$SERVER_LIST" | awk -F "|" '{ if($1 != "") print "HostName : "$2", IP : "$3", commant : "$6}' && \
+		exit
+
+	USER="`echo $SERVER_LIST | awk -F "|" '{print $1}'`"
+	HOST="`echo $SERVER_LIST | awk -F "|" '{print $2}'`"
+	IP="`echo $SERVER_LIST | awk -F "|" '{print $3}'`"
+	PORT="`echo $SERVER_LIST | awk -F "|" '{print $4}'`"
+	KEY="`echo $SERVER_LIST | awk -F "|" '{print $5}'`"
+	COMMAND="`echo $SERVER_LIST | awk -F "|" '{print $6}'`"
+	
+	[[ -z $IP ]] && \
+        echo "can not find IP" && \
+        exit -1
+	    
+	if [ -z $KEY ]; then
+		ssh -p $PORT $USER@$IP
+	else
+	    [[ ! -f $KEY ]] && \
+            echo "$KEY file not found!!" && \
+            exit
+		ssh -i $KEY -p $PORT $USER@$IP 
+	fi
+}
+
+[[ ! -f $LIST_FILE ]] && \
+    touch $LIST_FILE
+
+case $1 in
+	-d)
+		[[ -z $2 ]] && \
+			echo "args not found, input hostname" && \
+			exit
+			
+		for i in `cat $LIST_FILE`
+		do
+			SERVER_LIST=`echo "$i" | awk -F "|" -v TH=$2 '{if(TH == $2) print $0}'`
+			[[ ! -z $SERVER_LIST ]] && \
+				break
+		done
+		[[ -z $SERVER_LIST ]] && \
+			_SERVER_LIST | more && \
+			exit
+		;;
+	-i)
+		[[ -z $2 ]] && \
+			echo "args not found, input ipaddress" && \
+			exit
+			
+		for i in `cat $LIST_FILE`
+		do
+			SERVER_LIST=`echo "$i" | awk -F "|" -v TH=$2 '{if(TH == $3) print $0}'`
+			[[ ! -z $SERVER_LIST ]] && \
+				break
+		done
+		[[ -z $SERVER_LIST ]] && \
+			_SERVER_LIST && \
+			exit
+		;;
+    -t)
+        [[ -z $2 ]] && \
+            echo "input server type" && \
+            echo "      Server type : "`grep "^#" $LIST_FILE | awk '{print $2}'` && \
+            exit -1
+        
+        TYPE_PRINT $2
+        ;;
+	-I)
+	    [[ -z $2 ]] && \
+	        echo "used : $0 -I --id={login id} --host={hostname} --ip={server ip} --port={server port}" && \
+	        echo "      etc : --key={ssh connected key file} --command={commant}" && \
+	        echo "          Server type : "`grep "^#" $LIST_FILE | awk '{print $2}'` && \
+	        exit -1
+	   _INSERT $@
+		;;		
+	-D)
+	    [[ -z $2 ]] && \
+	        echo "used : $0 -D --host={hostname} --ip={server ip}" && \
+	        exit -1
+	    _DELETE $@
+	    ;;
+	-A)
+	    [[ -z $2 ]] && \
+	        echo "used : $0 -A --type={Server Type}" && \
+	        exit -1
+	    TYPE_ADD $@
+	    ;;
+	-U)
+	    [[ -z $2 ]] && \
+	        echo "used : $0 -U --host={old hostname}/{new hostname} --ip={old server ip}/{new server ip} --port={old server IP}:{old port}/{new server IP}:{new port}" && \
+	        exit -1
+        _UPDATE $@
+	    ;;
+	-l)
+		[[ -z $2 ]] && \
+			echo "args not found, input hostname or ip" && \
+			exit
+		SERVER_LIST=`grep "|$2|" $LIST_FILE | grep -v "^#"`
+		[[ -z $SERVER_LIST ]] && \
+		    echo "$2 not found" && \
+		    exit -1
+		echo $SERVER_LIST | awk -F "|" '{ if($2 != "") print "HostName : "$2", IP : "$3", Port : "$4", Key file : "$5", commant : "$6}'
+		exit 0
+        ;;
+    -L)
+        _SERVER_LIST
+        exit 0
+        ;;    
+    -R)
+        [[ -z $2 ]] && \
+            echo "Server List restore used : $0 -R {date (format YYYYMMDDHHmmss)} or {option}" && \
+            echo "choice restore time" && \
+            ls ${HOME}/.ssh_connect/.server_list-backup.* | awk -F "backup." '{print "\t"$2}' && \
+            echo "  option:" && \
+            echo "      --remove : restore data delete" && \
+            echo "      example) con -R {date (format YYYYMMDDHHmmss)} --remove" && \
+            echo "      --restore : restore data" && \
+            echo "      example) con -R {date (format YYYYMMDDHHmmss)} --restore" && \
+            exit -1
+        
+        _RESTORE $@
+        
+        exit 0
+        ;;
+	*)
+        for i in ${@}
+        do
+            case $i in
+                -p)
+                    PORT=`echo "${@}" | awk -F "-p" '{print $2}' | awk -F "-" '{print $1}' | sed "s/\ //g"`
+                    ;;
+                -u)
+                    CON_ID=`echo "${@}" | awk -F "-u" '{print $2}' | awk -F "-" '{print $1}' | sed "s/\ //g"`
+                    ;;
+                -k)
+                    CON_KEY=`echo "${@}" | awk -F "-k" '{print $2}' | awk -F "-" '{print $1}' | sed "s/\ //g"`
+                    ;;
+                *@*)
+                    CON_ID=`echo $i | awk -F "@" '{print $1}'`
+                    CON_IP=`echo $i | awk -F "@" '{print $2}' | awk -F ":" '{print $1}'`
+                    PORT=`echo $i | awk -F ":" '{print $2}'`
+                    ;;
+            esac
+        done
+	    SERVER_LIST=`grep "$1" $LIST_FILE | grep -v "^#"`
+	    if [ -z "$SERVER_LIST" ]; then
+            [[ -z "$CON_ID" ]] && \
+                CON_ID=$DEFAULT_ID
+            [[ -z $PORT ]] && \
+                PORT=$DEFAULT_PORT
+            [[ -z "$CON_IP" ]] && \
+                CON_IP=$1
+            
+            SERVER_LIST="$CON_ID|tmp|$CON_IP|$PORT|$CON_KEY|tmp server IP"
+        fi
+        
+        [[ -z $1 ]] && \
+		    _ECHO && \
+		    exit -1
+    
+        ;;
+esac
+
+_CONN
